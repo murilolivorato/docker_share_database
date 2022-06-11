@@ -1,0 +1,66 @@
+version: "3.9"
+
+networks:
+  dk_sso_one:
+    external:
+      name: dk_sso_one
+  dk_sso_two:
+    name: dk_sso_two
+
+services:
+  server:
+    # image: 'nginx:stable-alpine'
+    build:
+      context: .
+      dockerfile: dockerfiles/nginx.dockerfile
+    ports:
+      - '8081:80'
+    volumes:
+      - ./src:/var/www/html
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - php
+      - redis
+    container_name: dk_sso_two_server
+    networks:
+      - dk_sso_two
+      - dk_sso_one
+  php:
+    build:
+      context: .
+      dockerfile: dockerfiles/php.dockerfile
+    volumes:
+      - ./src:/var/www/html:delegated
+      # - ./php.ini:/usr/local/etc/php/conf.d/zzz-custom.ini
+      # - ./php.ini:/usr/local/etc/php/conf.d/php.ini
+      # - ./php.ini:/usr/local/etc/php/conf.d/zzz-custom.ini
+      #- ./src:/usr/local/etc/php/php.ini
+    networks:
+      - dk_sso_two
+      - dk_sso_one
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    ports:
+      - 6380:6380
+    networks:
+      - dk_sso_two
+  composer:
+    build:
+      context: ./dockerfiles
+      dockerfile: composer.dockerfile
+    volumes:
+      - ./src:/var/www/html
+    depends_on:
+      - php
+    networks:
+      - dk_sso_two
+  artisan:
+    build:
+      context: .
+      dockerfile: dockerfiles/php.dockerfile
+    volumes:
+      - ./src:/var/www/html
+    entrypoint: ["php", "/var/www/html/artisan"]
+    networks:
+      - dk_sso_two
